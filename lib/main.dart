@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/src/semantics/semantics.dart';
 
 void main() {
   runApp(const MyApp());
@@ -9,12 +10,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'New Widget'),
     );
   }
 }
@@ -29,14 +29,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,24 +36,18 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(widget.title),
       ),
-      body: Center(
+      body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            LabeleDivider(
+              textColor: Colors.white,
+              backgroundColor: Colors.black,
+              label: 'My new Widget',
+              thickness: 1,
+            )
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -70,25 +56,36 @@ class _MyHomePageState extends State<MyHomePage> {
 class LabeleDivider extends LeafRenderObjectWidget {
   final String label;
   final double thickness;
-  final Color color;
+  final Color textColor;
+  final Color backgroundColor;
 
   const LabeleDivider({
     super.key,
     required this.label,
     required this.thickness,
-    required this.color,
+    required this.textColor,
+    required this.backgroundColor,
   });
   @override
   RenderObject createRenderObject(BuildContext context) {
-    // TODO: implement createRenderObject
-    throw UnimplementedError();
+    return RenderLabeledDivider(
+      textcolor: textColor,
+      label: label,
+      thickness: thickness,
+      backgroundColor: backgroundColor,
+    );
   }
 
   @override
   void updateRenderObject(
-      BuildContext context, covariant RenderObject renderObject) {
-    // TODO: implement updateRenderObject
-    super.updateRenderObject(context, renderObject);
+    BuildContext context,
+    covariant RenderLabeledDivider renderObject,
+  ) {
+    renderObject
+      ..label = label
+      ..thickness = thickness
+      ..color = textColor
+      ..backgoundColor = backgroundColor;
   }
 }
 
@@ -97,18 +94,29 @@ class RenderLabeledDivider extends RenderBox {
   String get label => _label;
   set label(String label) {
     if (_label != label) _label = label;
+    markNeedsLayout();
+    markNeedsSemanticsUpdate();
   }
 
   double _thickness;
   double get thickness => _thickness;
   set thickness(double thickness) {
     if (_thickness != thickness) _thickness = thickness;
+    markNeedsLayout();
   }
 
-  Color _color;
-  Color get color => _color;
+  Color _textColor;
+  Color get color => _textColor;
   set color(Color color) {
-    if (_color != color) _color = color;
+    if (_textColor != color) _textColor = color;
+    markNeedsPaint();
+  }
+
+  Color _backgoundColor;
+  Color get backgoundColor => _backgoundColor;
+  set backgoundColor(Color backgoundColor) {
+    if (_backgoundColor != backgoundColor) _backgoundColor = backgoundColor;
+    markNeedsPaint();
   }
 
   late final TextPainter _textPainter;
@@ -116,12 +124,67 @@ class RenderLabeledDivider extends RenderBox {
   RenderLabeledDivider({
     required String label,
     required double thickness,
-    required Color color,
+    required Color textcolor,
+    required Color backgroundColor,
   })  : _label = label,
         _thickness = thickness,
-        _color = color {
+        _textColor = textcolor,
+        _backgoundColor = backgroundColor {
     _textPainter = TextPainter(
       textDirection: TextDirection.ltr,
     );
+  }
+
+  @override
+  void performLayout() {
+    _textPainter.text = TextSpan(
+      text: _label,
+      style: TextStyle(color: _textColor),
+    );
+
+    _textPainter.layout();
+
+    final double textHeight = _textPainter.size.height;
+    size = constraints.constrain(
+      Size(
+        double.infinity,
+        _thickness + textHeight,
+      ),
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final Paint backgroundPaint = Paint()
+      ..color = backgoundColor
+      ..style = PaintingStyle.fill;
+
+    final Rect backgroundRect = Rect.fromLTWH(
+      offset.dx,
+      offset.dy,
+      size.width,
+      size.height,
+    );
+
+    context.canvas.drawRect(backgroundRect, backgroundPaint);
+
+    final double yCenter = offset.dy;
+
+    final double textStart =
+        offset.dx + (size.width - _textPainter.size.width) / 2;
+    final textHeight = yCenter;
+
+    _textPainter.paint(
+      context.canvas,
+      Offset(textStart, textHeight),
+    );
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config
+      ..isSemanticBoundary = true
+      ..label = 'Divider with text: $_label';
   }
 }
